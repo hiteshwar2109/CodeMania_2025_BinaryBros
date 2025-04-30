@@ -74,7 +74,7 @@ export default {
             dark: '#0EA5E9',
             light: '#D3E4FD',
           },
-          background: '#F1F0FB',
+          background: '#FFFFFF', // Changed from #F1F0FB to white
           white: '#FFFFFF',
           gray: '#8E9196',
         }

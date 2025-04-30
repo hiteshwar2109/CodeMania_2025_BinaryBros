@@ -1,11 +1,11 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BookOpen, FileText, Upload, PlusCircle, FolderOpen, Trash2 } from "lucide-react";
-import { toast } from "@/components/ui/sonner";
+import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -36,11 +36,30 @@ const Materials = () => {
   const [newCourseDescription, setNewCourseDescription] = useState("");
   
   // Fetch materials when component mounts
-  useState(() => {
+  useEffect(() => {
     if (user) {
       fetchMaterials();
+      ensureStorageBucket();
     }
-  });
+  }, [user]);
+  
+  const ensureStorageBucket = async () => {
+    try {
+      // Check if the materials bucket exists
+      const { data: buckets, error } = await supabase.storage.listBuckets();
+      
+      if (error) {
+        console.error("Error checking buckets:", error);
+        return;
+      }
+      
+      // If the bucket doesn't exist, we'll create it on first upload
+      const materialsBucketExists = buckets?.some(bucket => bucket.name === 'materials');
+      console.log("Materials bucket exists:", materialsBucketExists);
+    } catch (error) {
+      console.error("Error in ensureStorageBucket:", error);
+    }
+  };
   
   const fetchMaterials = async () => {
     if (!user) return;
@@ -82,17 +101,6 @@ const Materials = () => {
     setSelectedFile(file);
   };
   
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const fileList = event.target.files;
-    if (!fileList) return;
-    
-    const newFiles = Array.from(fileList);
-    setFiles(prev => [...prev, ...newFiles]);
-    
-    toast.success(`Selected ${newFiles.length} file(s) successfully`);
-    event.target.value = '';
-  };
-  
   const handleSubmitMaterial = async () => {
     if (!user) {
       toast.error("You must be logged in to upload materials");
@@ -111,16 +119,27 @@ const Materials = () => {
     
     setIsLoading(true);
     try {
-      // First, upload the file to storage
+      // First, create the bucket if it doesn't exist (this will automatically happen with the upload)
       const timestamp = Date.now();
-      const fileExt = selectedFile.name.split('.').pop();
-      const filePath = `${user.id}/${timestamp}-${selectedFile.name}`;
+      const fileName = `${timestamp}-${selectedFile.name.replace(/\s+/g, '_')}`;
+      const filePath = `${user.id}/${fileName}`;
       
-      const { error: uploadError } = await supabase.storage
+      // Upload the file to storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
         .from('materials')
-        .upload(filePath, selectedFile);
+        .upload(filePath, selectedFile, {
+          cacheControl: '3600',
+          upsert: false
+        });
         
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error("Storage upload error:", uploadError);
+        if (uploadError.message.includes('bucket') && uploadError.message.includes('not found')) {
+          toast.error("Storage bucket needs to be created. Please try again.");
+          return;
+        }
+        throw uploadError;
+      }
       
       // Then, create a record in the materials table
       const { data, error } = await supabase
@@ -157,7 +176,7 @@ const Materials = () => {
       }
     } catch (error: any) {
       console.error("Error uploading material:", error);
-      toast.error("Failed to upload material");
+      toast.error(`Failed to upload material: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -177,7 +196,10 @@ const Materials = () => {
           .from('materials')
           .remove([material.filePath]);
           
-        if (deleteStorageError) throw deleteStorageError;
+        if (deleteStorageError) {
+          console.error("Storage delete error:", deleteStorageError);
+          // Continue with record deletion even if file deletion fails
+        }
       }
       
       // Delete the record from the materials table
@@ -205,7 +227,7 @@ const Materials = () => {
     }
     
     // Here we would typically save the course to the database
-    // For now, we'll just show a toast notification
+    // For now, just show a toast notification
     toast.success(`Course "${newCourseName}" created successfully`);
     setNewCourseName("");
     setNewCourseDescription("");

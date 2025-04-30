@@ -9,10 +9,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CalendarIcon } from "lucide-react";
-import { format } from "date-fns";
+import { format, addDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useTasks } from "@/context/TaskContext";
-import { toast } from "@/components/ui/sonner";
+import { toast } from "sonner";
+import { useNotifications } from "@/context/NotificationContext";
 
 interface TaskFormProps {
   open: boolean;
@@ -25,7 +26,9 @@ export function TaskForm({ open, onOpenChange }: TaskFormProps) {
   const [dueDate, setDueDate] = useState<Date | undefined>(new Date());
   const [priority, setPriority] = useState<"low" | "medium" | "high">("medium");
   const [category, setCategory] = useState("");
+  const [createNotification, setCreateNotification] = useState(true);
   const { addTask, isLoading } = useTasks();
+  const { createNotification: addNotification } = useNotifications();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,7 +44,7 @@ export function TaskForm({ open, onOpenChange }: TaskFormProps) {
     }
     
     try {
-      await addTask({
+      const newTask = await addTask({
         title,
         description,
         dueDate: dueDate.toISOString(),
@@ -50,12 +53,24 @@ export function TaskForm({ open, onOpenChange }: TaskFormProps) {
         category: category || "General",
       });
       
+      // Create notification if the checkbox is checked
+      if (createNotification && newTask?.id) {
+        const dueMessage = new Date(dueDate).toLocaleDateString();
+        await addNotification({
+          title: "New Task Created",
+          message: `You've created a new task "${title}" due on ${dueMessage}`,
+          type: "task",
+          relatedItemId: newTask.id
+        });
+      }
+      
       // Reset form
       setTitle("");
       setDescription("");
       setDueDate(new Date());
       setPriority("medium");
       setCategory("");
+      setCreateNotification(true);
       
       // Close dialog
       onOpenChange(false);
@@ -122,7 +137,40 @@ export function TaskForm({ open, onOpenChange }: TaskFormProps) {
                     selected={dueDate}
                     onSelect={setDueDate}
                     initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                    disabled={(date) => {
+                      // Disable dates in the past
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      return date < today;
+                    }}
                   />
+                  <div className="flex justify-between p-3 border-t">
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => setDueDate(new Date())}
+                    >
+                      Today
+                    </Button>
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => setDueDate(addDays(new Date(), 1))}
+                    >
+                      Tomorrow
+                    </Button>
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => setDueDate(addDays(new Date(), 7))}
+                    >
+                      Next Week
+                    </Button>
+                  </div>
                 </PopoverContent>
               </Popover>
             </div>
@@ -157,6 +205,19 @@ export function TaskForm({ open, onOpenChange }: TaskFormProps) {
               value={category}
               onChange={(e) => setCategory(e.target.value)}
             />
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              id="createNotification"
+              checked={createNotification}
+              onChange={(e) => setCreateNotification(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-student-purple focus:ring-student-purple"
+            />
+            <Label htmlFor="createNotification" className="text-sm font-medium">
+              Create notification for this task
+            </Label>
           </div>
           
           <div className="flex justify-end space-x-2 pt-2">

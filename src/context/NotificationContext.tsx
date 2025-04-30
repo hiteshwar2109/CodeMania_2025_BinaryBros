@@ -2,7 +2,7 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./AuthContext";
-import { toast } from "@/components/ui/sonner";
+import { toast } from "sonner";
 
 export interface Notification {
   id: string;
@@ -171,12 +171,18 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     
     setIsLoading(true);
     try {
+      const validType = notification.type === "task" || 
+                        notification.type === "reminder" || 
+                        notification.type === "system" 
+                        ? notification.type 
+                        : "system";
+                        
       const { data, error } = await supabase
         .from('notifications')
         .insert([{
           title: notification.title,
           message: notification.message,
-          type: notification.type,
+          type: validType,
           is_read: false,
           related_item_id: notification.relatedItemId,
           user_id: user.id
@@ -190,7 +196,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
           id: data[0].id,
           title: data[0].title,
           message: data[0].message,
-          type: data[0].type,
+          type: data[0].type as "task" | "reminder" | "system",
           isRead: data[0].is_read,
           relatedItemId: data[0].related_item_id || undefined,
           createdAt: data[0].created_at

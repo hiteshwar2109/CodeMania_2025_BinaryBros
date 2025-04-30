@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./AuthContext";
@@ -133,18 +132,7 @@ export const TaskProvider = ({ children }: { children: React.ReactNode }) => {
         
         setTasks(prev => [...prev, newTask]);
         toast.success("Task added successfully");
-        
-        // Create a notification for this new task
-        await supabase
-          .from('notifications')
-          .insert([{
-            user_id: user.id,
-            title: 'New Task Created',
-            message: `You've created a new task: ${task.title}`,
-            type: 'task',
-            is_read: false,
-            related_item_id: data[0].id
-          }]);
+        return newTask;
       }
     } catch (error: any) {
       console.error("Error adding task:", error);
