@@ -12,6 +12,7 @@ type AuthContextType = {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
 };
 
@@ -43,19 +44,69 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       // This is a mock login - in a real app you would call your auth API
       if (email && password) {
-        const mockUser = {
-          id: "user-1",
-          name: email.split('@')[0],
-          email,
-        };
+        // Check if this user exists in mock storage
+        const usersStr = localStorage.getItem("users") || "[]";
+        const users = JSON.parse(usersStr);
+        const existingUser = users.find((u: any) => u.email === email);
         
-        setUser(mockUser);
-        localStorage.setItem("user", JSON.stringify(mockUser));
-        return;
+        if (existingUser && existingUser.password === password) {
+          const authenticatedUser = {
+            id: existingUser.id,
+            name: existingUser.name,
+            email: existingUser.email,
+          };
+          
+          setUser(authenticatedUser);
+          localStorage.setItem("user", JSON.stringify(authenticatedUser));
+          return;
+        }
+        
+        throw new Error("Invalid credentials");
       }
       throw new Error("Invalid credentials");
     } catch (error) {
       console.error("Login failed:", error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const register = async (name: string, email: string, password: string) => {
+    setIsLoading(true);
+    try {
+      // This is a mock registration - in a real app you would call your auth API
+      const usersStr = localStorage.getItem("users") || "[]";
+      const users = JSON.parse(usersStr);
+      
+      // Check if user already exists
+      if (users.some((user: any) => user.email === email)) {
+        throw new Error("User already exists with this email");
+      }
+      
+      // Create new user
+      const newUser = {
+        id: `user-${Date.now()}`,
+        name,
+        email,
+        password, // In a real app, NEVER store plain text passwords
+      };
+      
+      // Save to mock storage
+      users.push(newUser);
+      localStorage.setItem("users", JSON.stringify(users));
+      
+      // Login the user
+      const authenticatedUser = {
+        id: newUser.id,
+        name: newUser.name,
+        email: newUser.email,
+      };
+      
+      setUser(authenticatedUser);
+      localStorage.setItem("user", JSON.stringify(authenticatedUser));
+    } catch (error) {
+      console.error("Registration failed:", error);
       throw error;
     } finally {
       setIsLoading(false);
@@ -74,6 +125,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         isAuthenticated: !!user,
         isLoading,
         login,
+        register,
         logout,
       }}
     >

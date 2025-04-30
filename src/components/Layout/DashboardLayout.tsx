@@ -1,6 +1,7 @@
 
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { useNotifications } from "@/context/NotificationContext";
 import { Navigate, Outlet } from "react-router-dom";
 import { SidebarNav } from "./SidebarNav";
 import { NotificationPanel } from "../NotificationPanel";
@@ -9,6 +10,7 @@ import { Menu, Bell } from "lucide-react";
 
 const DashboardLayout = () => {
   const { isAuthenticated, isLoading } = useAuth();
+  const { unreadCount } = useNotifications();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
@@ -61,7 +63,11 @@ const DashboardLayout = () => {
                 aria-label="Notifications"
               >
                 <Bell className="h-5 w-5" />
-                <span className="absolute top-1 right-1 h-2 w-2 bg-student-purple rounded-full"></span>
+                {unreadCount > 0 && (
+                  <span className="absolute top-1 right-1 h-4 w-4 bg-student-purple rounded-full flex items-center justify-center text-[10px] text-white font-bold">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
               </Button>
             </div>
           </div>

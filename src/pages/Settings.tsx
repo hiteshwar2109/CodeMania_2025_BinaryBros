@@ -1,144 +1,137 @@
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState } from "react";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/sonner";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { toast } from "@/components/ui/sonner";
+import { useAuth } from "@/context/AuthContext";
+import { DatabaseService } from "@/services/DatabaseService";
 
 const Settings = () => {
-  const handleSave = () => {
-    toast.success("Settings saved successfully!");
+  const { user } = useAuth();
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [emailNotifications, setEmailNotifications] = useState(false);
+  const [theme, setTheme] = useState("light");
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Save user preferences
+  const savePreferences = () => {
+    if (!user) return;
+    
+    setIsSaving(true);
+    
+    try {
+      DatabaseService.updateUser(user.id, {
+        preferences: {
+          notificationsEnabled,
+          emailNotifications,
+          theme
+        }
+      });
+      
+      toast.success("Settings saved successfully!");
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to save settings.");
+    } finally {
+      setIsSaving(false);
+    }
   };
-  
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-        <Button className="bg-student-purple hover:bg-student-purple-dark" onClick={handleSave}>
-          Save Changes
-        </Button>
+    <div className="max-w-4xl mx-auto">
+      <h1 className="text-2xl font-bold mb-6">Settings</h1>
+      
+      <div className="space-y-6">
+        {/* Notification Settings */}
+        <Card className="p-6">
+          <h2 className="text-xl font-semibold mb-4">Notifications</h2>
+          
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label htmlFor="notifications" className="text-base font-medium">In-app Notifications</Label>
+                <p className="text-sm text-gray-500">Receive notifications about tasks and reminders</p>
+              </div>
+              <Switch
+                id="notifications"
+                checked={notificationsEnabled}
+                onCheckedChange={setNotificationsEnabled}
+              />
+            </div>
+            
+            <div className="flex items-center justify-between">
+              <div>
+                <Label htmlFor="email-notifications" className="text-base font-medium">Email Notifications</Label>
+                <p className="text-sm text-gray-500">Receive notifications via email</p>
+              </div>
+              <Switch
+                id="email-notifications"
+                checked={emailNotifications}
+                onCheckedChange={setEmailNotifications}
+                disabled={!notificationsEnabled}
+              />
+            </div>
+          </div>
+        </Card>
+        
+        {/* Appearance Settings */}
+        <Card className="p-6">
+          <h2 className="text-xl font-semibold mb-4">Appearance</h2>
+          
+          <div className="space-y-4">
+            <div>
+              <Label className="text-base font-medium mb-2 block">Theme</Label>
+              <div className="flex space-x-2">
+                <Button
+                  variant={theme === "light" ? "default" : "outline"}
+                  onClick={() => setTheme("light")}
+                  className={theme === "light" ? "bg-student-purple" : ""}
+                >
+                  Light
+                </Button>
+                <Button
+                  variant={theme === "dark" ? "default" : "outline"}
+                  onClick={() => setTheme("dark")}
+                  className={theme === "dark" ? "bg-student-purple" : ""}
+                >
+                  Dark
+                </Button>
+                <Button
+                  variant={theme === "system" ? "default" : "outline"}
+                  onClick={() => setTheme("system")}
+                  className={theme === "system" ? "bg-student-purple" : ""}
+                >
+                  System
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Card>
+        
+        {/* Data Settings */}
+        <Card className="p-6">
+          <h2 className="text-xl font-semibold mb-4">Data</h2>
+          
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm text-gray-500 mb-2">Clear all saved data and reset preferences</p>
+              <Button variant="destructive">Clear Data</Button>
+            </div>
+          </div>
+        </Card>
+        
+        <div className="flex justify-end">
+          <Button 
+            onClick={savePreferences}
+            disabled={isSaving}
+            className="bg-student-purple hover:bg-student-purple-dark"
+          >
+            {isSaving ? "Saving..." : "Save Settings"}
+          </Button>
+        </div>
       </div>
-      
-      <Card>
-        <CardHeader>
-          <CardTitle>Notifications</CardTitle>
-          <CardDescription>Configure how you want to be notified</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label htmlFor="deadline-reminders" className="text-base">Deadline Reminders</Label>
-                <p className="text-sm text-gray-500">Get notified about upcoming deadlines</p>
-              </div>
-              <Switch id="deadline-reminders" defaultChecked />
-            </div>
-            
-            <div className="flex items-center justify-between">
-              <div>
-                <Label htmlFor="study-reminders" className="text-base">Study Reminders</Label>
-                <p className="text-sm text-gray-500">Get notified about scheduled study sessions</p>
-              </div>
-              <Switch id="study-reminders" defaultChecked />
-            </div>
-            
-            <div className="flex items-center justify-between">
-              <div>
-                <Label htmlFor="ai-suggestions" className="text-base">AI Suggestions</Label>
-                <p className="text-sm text-gray-500">Receive personalized study recommendations</p>
-              </div>
-              <Switch id="ai-suggestions" defaultChecked />
-            </div>
-          </div>
-          
-          <div className="space-y-2 pt-4">
-            <Label htmlFor="reminder-timing">Reminder Timing</Label>
-            <Select defaultValue="24h">
-              <SelectTrigger>
-                <SelectValue placeholder="Select when to receive reminders" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="1h">1 hour before</SelectItem>
-                <SelectItem value="3h">3 hours before</SelectItem>
-                <SelectItem value="12h">12 hours before</SelectItem>
-                <SelectItem value="24h">24 hours before</SelectItem>
-                <SelectItem value="48h">48 hours before</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-      
-      <Card>
-        <CardHeader>
-          <CardTitle>AI Assistant</CardTitle>
-          <CardDescription>Configure your AI study companion</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label htmlFor="use-history" className="text-base">Use Chat History</Label>
-                <p className="text-sm text-gray-500">AI will remember past conversations</p>
-              </div>
-              <Switch id="use-history" defaultChecked />
-            </div>
-            
-            <div className="flex items-center justify-between">
-              <div>
-                <Label htmlFor="proactive-help" className="text-base">Proactive Help</Label>
-                <p className="text-sm text-gray-500">AI will suggest help without being asked</p>
-              </div>
-              <Switch id="proactive-help" />
-            </div>
-            
-            <div className="flex items-center justify-between">
-              <div>
-                <Label htmlFor="anonymous-analytics" className="text-base">Anonymous Analytics</Label>
-                <p className="text-sm text-gray-500">Help improve the AI by sharing anonymous usage data</p>
-              </div>
-              <Switch id="anonymous-analytics" defaultChecked />
-            </div>
-          </div>
-          
-          <div className="space-y-2 pt-4">
-            <Label htmlFor="ai-verbosity">AI Response Length</Label>
-            <Select defaultValue="balanced">
-              <SelectTrigger>
-                <SelectValue placeholder="Select AI verbosity" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="concise">Concise</SelectItem>
-                <SelectItem value="balanced">Balanced</SelectItem>
-                <SelectItem value="detailed">Detailed</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-      
-      <Card>
-        <CardHeader>
-          <CardTitle>Appearance</CardTitle>
-          <CardDescription>Customize how StudySmart looks</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2 pt-4">
-            <Label htmlFor="theme-choice">Theme</Label>
-            <Select defaultValue="light">
-              <SelectTrigger>
-                <SelectValue placeholder="Select theme" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="light">Light</SelectItem>
-                <SelectItem value="dark">Dark</SelectItem>
-                <SelectItem value="system">System Default</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 };

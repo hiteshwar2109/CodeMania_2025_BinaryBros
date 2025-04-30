@@ -1,19 +1,13 @@
 
 import { createContext, useContext, useState, useEffect } from "react";
+import { DatabaseService, DbTask } from "../services/DatabaseService";
+import { useAuth } from "./AuthContext";
 
-export type Task = {
-  id: string;
-  title: string;
-  description: string;
-  dueDate: string;
-  priority: "low" | "medium" | "high";
-  completed: boolean;
-  category: string;
-};
+export type Task = Omit<DbTask, 'userId'>;
 
 type TaskContextType = {
   tasks: Task[];
-  addTask: (task: Omit<Task, "id">) => void;
+  addTask: (task: Omit<Task, "id" | "createdAt" | "updatedAt">) => void;
   updateTask: (id: string, task: Partial<Task>) => void;
   deleteTask: (id: string) => void;
   getTaskById: (id: string) => Task | undefined;
@@ -31,44 +25,57 @@ export const useTasks = () => {
 };
 
 export const TaskProvider = ({ children }: { children: React.ReactNode }) => {
-  const [tasks, setTasks] = useState<Task[]>(() => {
-    const storedTasks = localStorage.getItem("tasks");
-    return storedTasks
-      ? JSON.parse(storedTasks)
-      : [
-          {
-            id: "1",
-            title: "Complete Math Assignment",
-            description: "Chapter 5 problems 1-20",
-            dueDate: new Date(Date.now() + 86400000).toISOString(), // Tomorrow
-            priority: "high",
-            completed: false,
-            category: "Math",
-          },
-          {
-            id: "2",
-            title: "Read History Chapter",
-            description: "Chapter 3: World War II",
-            dueDate: new Date(Date.now() + 172800000).toISOString(), // Day after tomorrow
-            priority: "medium",
-            completed: false,
-            category: "History",
-          },
-          {
-            id: "3",
-            title: "Literature Essay Draft",
-            description: "First draft of Shakespeare analysis",
-            dueDate: new Date(Date.now() + 259200000).toISOString(), // 3 days from now
-            priority: "low",
-            completed: false,
-            category: "Literature",
-          },
-        ];
-  });
+  const { user } = useAuth();
+  const [tasks, setTasks] = useState<Task[]>([]);
 
+  // Fetch tasks when user changes
   useEffect(() => {
-    localStorage.setItem("tasks", JSON.stringify(tasks));
-  }, [tasks]);
+    if (user) {
+      const userTasks = DatabaseService.getTasksByUserId(user.id);
+      setTasks(userTasks.map(task => {
+        // Remove userId from tasks when providing to components
+        const { userId, ...taskWithoutUserId } = task;
+        return taskWithoutUserId;
+      }));
+    } else {
+      // If no user is logged in, provide demo tasks
+      setTasks([
+        {
+          id: "1",
+          title: "Complete Math Assignment",
+          description: "Chapter 5 problems 1-20",
+          dueDate: new Date(Date.now() + 86400000).toISOString(), // Tomorrow
+          priority: "high",
+          completed: false,
+          category: "Math",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        {
+          id: "2",
+          title: "Read History Chapter",
+          description: "Chapter 3: World War II",
+          dueDate: new Date(Date.now() + 172800000).toISOString(), // Day after tomorrow
+          priority: "medium",
+          completed: false,
+          category: "History",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        {
+          id: "3",
+          title: "Literature Essay Draft",
+          description: "First draft of Shakespeare analysis",
+          dueDate: new Date(Date.now() + 259200000).toISOString(), // 3 days from now
+          priority: "low",
+          completed: false,
+          category: "Literature",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      ]);
+    }
+  }, [user]);
 
   // Get upcoming tasks (not completed, sorted by due date)
   const upcomingTasks = tasks
@@ -83,28 +90,55 @@ export const TaskProvider = ({ children }: { children: React.ReactNode }) => {
       return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
     });
 
-  const addTask = (task: Omit<Task, "id">) => {
-    const newTask = {
-      ...task,
-      id: crypto.randomUUID(),
-    };
-    setTasks(prev => [...prev, newTask]);
+  const addTask = (task: Omit<Task, "id" | "createdAt" | "updatedAt">) => {
+    if (!user) {
+      console.error("Cannot add task: No user logged in");
+      return;
+    }
+
+    try {
+      const newTask = DatabaseService.createTask({
+        ...task,
+        userId: user.id,
+      });
+      
+      // Remove userId from the task when providing to components
+      const { userId, ...taskWithoutUserId } = newTask;
+      setTasks(prev => [...prev, taskWithoutUserId]);
+    } catch (error) {
+      console.error("Error adding task:", error);
+    }
   };
 
   const updateTask = (id: string, updatedFields: Partial<Task>) => {
-    setTasks(prev => 
-      prev.map(task => 
-        task.id === id ? { ...task, ...updatedFields } : task
-      )
-    );
+    try {
+      const updatedTask = DatabaseService.updateTask(id, updatedFields);
+      
+      // Remove userId from the task when providing to components
+      const { userId, ...taskWithoutUserId } = updatedTask;
+      
+      setTasks(prev => 
+        prev.map(task => 
+          task.id === id ? taskWithoutUserId : task
+        )
+      );
+    } catch (error) {
+      console.error("Error updating task:", error);
+    }
   };
 
   const deleteTask = (id: string) => {
-    setTasks(prev => prev.filter(task => task.id !== id));
+    try {
+      DatabaseService.deleteTask(id);
+      setTasks(prev => prev.filter(task => task.id !== id));
+    } catch (error) {
+      console.error("Error deleting task:", error);
+    }
   };
 
   const getTaskById = (id: string) => {
-    return tasks.find(task => task.id === id);
+    const task = tasks.find(task => task.id === id);
+    return task;
   };
 
   return (

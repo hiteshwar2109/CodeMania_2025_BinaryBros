@@ -7,24 +7,32 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/components/ui/sonner";
 
-const Login = () => {
+const SignUp = () => {
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { login } = useAuth();
+  const { register } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (password !== confirmPassword) {
+      toast.error("Passwords don't match");
+      return;
+    }
+    
     setIsSubmitting(true);
     
     try {
-      await login(email, password);
-      toast.success("Login successful!");
+      await register(name, email, password);
+      toast.success("Account created successfully!");
       navigate("/dashboard");
     } catch (error) {
       console.error(error);
-      toast.error("Login failed. Please check your credentials.");
+      toast.error("Sign up failed. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -40,13 +48,26 @@ const Login = () => {
         
         <Card>
           <CardHeader>
-            <CardTitle>Welcome back</CardTitle>
+            <CardTitle>Create an Account</CardTitle>
             <CardDescription>
-              Sign in to your account to access your study dashboard
+              Sign up to start managing your studies more efficiently
             </CardDescription>
           </CardHeader>
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="name" className="text-sm font-medium">
+                  Full Name
+                </label>
+                <Input
+                  id="name"
+                  type="text"
+                  placeholder="John Doe"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                />
+              </div>
               <div className="space-y-2">
                 <label htmlFor="email" className="text-sm font-medium">
                   Email
@@ -61,23 +82,28 @@ const Login = () => {
                 />
               </div>
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label htmlFor="password" className="text-sm font-medium">
-                    Password
-                  </label>
-                  <button
-                    type="button"
-                    className="text-xs text-student-purple hover:text-student-purple-dark"
-                  >
-                    Forgot password?
-                  </button>
-                </div>
+                <label htmlFor="password" className="text-sm font-medium">
+                  Password
+                </label>
                 <Input
                   id="password"
                   type="password"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="confirmPassword" className="text-sm font-medium">
+                  Confirm Password
+                </label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  placeholder="••••••••"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
                   required
                 />
               </div>
@@ -88,26 +114,20 @@ const Login = () => {
                 className="w-full bg-student-purple hover:bg-student-purple-dark"
                 disabled={isSubmitting}
               >
-                {isSubmitting ? "Signing in..." : "Sign in"}
+                {isSubmitting ? "Creating Account..." : "Create Account"}
               </Button>
               <div className="text-sm text-center">
-                Don't have an account?{" "}
-                <Link to="/signup" className="text-student-purple hover:underline">
-                  Sign up
+                Already have an account?{" "}
+                <Link to="/login" className="text-student-purple hover:underline">
+                  Sign in
                 </Link>
               </div>
             </CardFooter>
           </form>
         </Card>
-        
-        <div className="text-center mt-6">
-          <p className="text-sm text-gray-600">
-            For demo purposes, any registered email/password will work
-          </p>
-        </div>
       </div>
     </div>
   );
 };
 
-export default Login;
+export default SignUp;
