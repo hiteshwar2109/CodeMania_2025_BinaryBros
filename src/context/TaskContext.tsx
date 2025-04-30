@@ -1,17 +1,29 @@
 
 import { createContext, useContext, useState, useEffect } from "react";
-import { DatabaseService, DbTask } from "../services/DatabaseService";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./AuthContext";
+import { toast } from "@/components/ui/sonner";
 
-export type Task = Omit<DbTask, 'userId'>;
+export interface Task {
+  id: string;
+  title: string;
+  description: string;
+  dueDate: string;
+  priority: "low" | "medium" | "high";
+  completed: boolean;
+  category: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 type TaskContextType = {
   tasks: Task[];
-  addTask: (task: Omit<Task, "id" | "createdAt" | "updatedAt">) => void;
-  updateTask: (id: string, task: Partial<Task>) => void;
-  deleteTask: (id: string) => void;
+  addTask: (task: Omit<Task, "id" | "createdAt" | "updatedAt">) => Promise<void>;
+  updateTask: (id: string, task: Partial<Task>) => Promise<void>;
+  deleteTask: (id: string) => Promise<void>;
   getTaskById: (id: string) => Task | undefined;
   upcomingTasks: Task[];
+  isLoading: boolean;
 };
 
 const TaskContext = createContext<TaskContextType | null>(null);
@@ -25,57 +37,50 @@ export const useTasks = () => {
 };
 
 export const TaskProvider = ({ children }: { children: React.ReactNode }) => {
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Fetch tasks when user changes
+  // Fetch tasks when user changes or authentication status changes
   useEffect(() => {
-    if (user) {
-      const userTasks = DatabaseService.getTasksByUserId(user.id);
-      setTasks(userTasks.map(task => {
-        // Remove userId from tasks when providing to components
-        const { userId, ...taskWithoutUserId } = task;
-        return taskWithoutUserId;
-      }));
+    if (isAuthenticated && user) {
+      fetchTasks();
     } else {
-      // If no user is logged in, provide demo tasks
-      setTasks([
-        {
-          id: "1",
-          title: "Complete Math Assignment",
-          description: "Chapter 5 problems 1-20",
-          dueDate: new Date(Date.now() + 86400000).toISOString(), // Tomorrow
-          priority: "high",
-          completed: false,
-          category: "Math",
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-        {
-          id: "2",
-          title: "Read History Chapter",
-          description: "Chapter 3: World War II",
-          dueDate: new Date(Date.now() + 172800000).toISOString(), // Day after tomorrow
-          priority: "medium",
-          completed: false,
-          category: "History",
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-        {
-          id: "3",
-          title: "Literature Essay Draft",
-          description: "First draft of Shakespeare analysis",
-          dueDate: new Date(Date.now() + 259200000).toISOString(), // 3 days from now
-          priority: "low",
-          completed: false,
-          category: "Literature",
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-      ]);
+      setTasks([]);
     }
-  }, [user]);
+  }, [user, isAuthenticated]);
+
+  const fetchTasks = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .order('due_date', { ascending: true });
+
+      if (error) throw error;
+
+      // Transform the data to match our Task interface
+      const transformedTasks: Task[] = data.map(task => ({
+        id: task.id,
+        title: task.title,
+        description: task.description || '',
+        dueDate: task.due_date,
+        priority: task.priority as "low" | "medium" | "high",
+        completed: task.completed,
+        category: task.category || '',
+        createdAt: task.created_at,
+        updatedAt: task.updated_at
+      }));
+
+      setTasks(transformedTasks);
+    } catch (error: any) {
+      console.error("Error fetching tasks:", error);
+      toast.error("Failed to load tasks");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Get upcoming tasks (not completed, sorted by due date)
   const upcomingTasks = tasks
@@ -90,55 +95,150 @@ export const TaskProvider = ({ children }: { children: React.ReactNode }) => {
       return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
     });
 
-  const addTask = (task: Omit<Task, "id" | "createdAt" | "updatedAt">) => {
+  const addTask = async (task: Omit<Task, "id" | "createdAt" | "updatedAt">) => {
     if (!user) {
-      console.error("Cannot add task: No user logged in");
+      toast.error("You must be logged in to add tasks");
       return;
     }
 
+    setIsLoading(true);
     try {
-      const newTask = DatabaseService.createTask({
-        ...task,
-        userId: user.id,
-      });
+      const { data, error } = await supabase
+        .from('tasks')
+        .insert([{
+          title: task.title,
+          description: task.description,
+          due_date: task.dueDate,
+          priority: task.priority,
+          completed: task.completed,
+          category: task.category,
+          user_id: user.id
+        }])
+        .select();
       
-      // Remove userId from the task when providing to components
-      const { userId, ...taskWithoutUserId } = newTask;
-      setTasks(prev => [...prev, taskWithoutUserId]);
-    } catch (error) {
+      if (error) throw error;
+      
+      if (data && data[0]) {
+        const newTask: Task = {
+          id: data[0].id,
+          title: data[0].title,
+          description: data[0].description || '',
+          dueDate: data[0].due_date,
+          priority: data[0].priority as "low" | "medium" | "high",
+          completed: data[0].completed,
+          category: data[0].category || '',
+          createdAt: data[0].created_at,
+          updatedAt: data[0].updated_at
+        };
+        
+        setTasks(prev => [...prev, newTask]);
+        toast.success("Task added successfully");
+        
+        // Create a notification for this new task
+        await supabase
+          .from('notifications')
+          .insert([{
+            user_id: user.id,
+            title: 'New Task Created',
+            message: `You've created a new task: ${task.title}`,
+            type: 'task',
+            is_read: false,
+            related_item_id: data[0].id
+          }]);
+      }
+    } catch (error: any) {
       console.error("Error adding task:", error);
+      toast.error("Failed to add task");
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const updateTask = (id: string, updatedFields: Partial<Task>) => {
+  const updateTask = async (id: string, updatedFields: Partial<Task>) => {
+    setIsLoading(true);
     try {
-      const updatedTask = DatabaseService.updateTask(id, updatedFields);
+      // Convert task fields to database column names
+      const dbFields: any = {};
+      if (updatedFields.title !== undefined) dbFields.title = updatedFields.title;
+      if (updatedFields.description !== undefined) dbFields.description = updatedFields.description;
+      if (updatedFields.dueDate !== undefined) dbFields.due_date = updatedFields.dueDate;
+      if (updatedFields.priority !== undefined) dbFields.priority = updatedFields.priority;
+      if (updatedFields.completed !== undefined) dbFields.completed = updatedFields.completed;
+      if (updatedFields.category !== undefined) dbFields.category = updatedFields.category;
       
-      // Remove userId from the task when providing to components
-      const { userId, ...taskWithoutUserId } = updatedTask;
+      const { data, error } = await supabase
+        .from('tasks')
+        .update(dbFields)
+        .eq('id', id)
+        .select();
+
+      if (error) throw error;
       
-      setTasks(prev => 
-        prev.map(task => 
-          task.id === id ? taskWithoutUserId : task
-        )
-      );
-    } catch (error) {
+      if (data && data[0]) {
+        const updatedTask: Task = {
+          id: data[0].id,
+          title: data[0].title,
+          description: data[0].description || '',
+          dueDate: data[0].due_date,
+          priority: data[0].priority as "low" | "medium" | "high",
+          completed: data[0].completed,
+          category: data[0].category || '',
+          createdAt: data[0].created_at,
+          updatedAt: data[0].updated_at
+        };
+        
+        setTasks(prev => 
+          prev.map(task => 
+            task.id === id ? updatedTask : task
+          )
+        );
+        
+        toast.success("Task updated successfully");
+        
+        // If the task was marked as completed, create a notification
+        if (updatedFields.completed === true && user) {
+          await supabase
+            .from('notifications')
+            .insert([{
+              user_id: user.id,
+              title: 'Task Completed',
+              message: `You've completed: ${updatedTask.title}`,
+              type: 'task',
+              is_read: false,
+              related_item_id: id
+            }]);
+        }
+      }
+    } catch (error: any) {
       console.error("Error updating task:", error);
+      toast.error("Failed to update task");
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const deleteTask = (id: string) => {
+  const deleteTask = async (id: string) => {
+    setIsLoading(true);
     try {
-      DatabaseService.deleteTask(id);
+      const { error } = await supabase
+        .from('tasks')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      
       setTasks(prev => prev.filter(task => task.id !== id));
-    } catch (error) {
+      toast.success("Task deleted successfully");
+    } catch (error: any) {
       console.error("Error deleting task:", error);
+      toast.error("Failed to delete task");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const getTaskById = (id: string) => {
-    const task = tasks.find(task => task.id === id);
-    return task;
+    return tasks.find(task => task.id === id);
   };
 
   return (
@@ -150,6 +250,7 @@ export const TaskProvider = ({ children }: { children: React.ReactNode }) => {
         deleteTask,
         getTaskById,
         upcomingTasks,
+        isLoading,
       }}
     >
       {children}

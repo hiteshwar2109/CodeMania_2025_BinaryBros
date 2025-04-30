@@ -1,11 +1,16 @@
 
+import { useState } from "react";
 import { useTasks, Task } from "@/context/TaskContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CalendarClock, BookOpen, MessageSquare, CheckCircle } from "lucide-react";
+import { TaskForm } from "@/components/TaskForm";
+import { useNavigate } from "react-router-dom";
 
 const Dashboard = () => {
-  const { tasks, upcomingTasks } = useTasks();
+  const { tasks, upcomingTasks, updateTask } = useTasks();
+  const [taskFormOpen, setTaskFormOpen] = useState(false);
+  const navigate = useNavigate();
   
   // Get today's and tomorrow's tasks
   const today = new Date();
@@ -34,22 +39,33 @@ const Dashboard = () => {
   // Get counts by category
   const categoryCounts: Record<string, number> = {};
   tasks.forEach(task => {
-    if (categoryCounts[task.category]) {
-      categoryCounts[task.category]++;
-    } else {
-      categoryCounts[task.category] = 1;
+    if (task.category) {
+      if (categoryCounts[task.category]) {
+        categoryCounts[task.category]++;
+      } else {
+        categoryCounts[task.category] = 1;
+      }
     }
   });
   
   const topCategories = Object.entries(categoryCounts)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3);
+
+  const handleMarkComplete = async (task: Task) => {
+    await updateTask(task.id, { completed: true });
+  };
   
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Study Dashboard</h1>
-        <Button className="bg-student-purple hover:bg-student-purple-dark">Add New Task</Button>
+        <Button 
+          className="bg-student-purple hover:bg-student-purple-dark"
+          onClick={() => setTaskFormOpen(true)}
+        >
+          Add New Task
+        </Button>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -132,15 +148,29 @@ const Dashboard = () => {
                         <p className="text-sm text-gray-500">{task.description}</p>
                       </div>
                     </div>
-                    <div className="text-xs text-gray-500 whitespace-nowrap">
-                      {new Date(task.dueDate).toLocaleDateString()}
+                    <div className="flex items-center space-x-2">
+                      <div className="text-xs text-gray-500 whitespace-nowrap">
+                        {new Date(task.dueDate).toLocaleDateString()}
+                      </div>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => handleMarkComplete(task)}
+                        className="h-8 w-8 p-0"
+                      >
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                      </Button>
                     </div>
                   </div>
                 ))}
                 
                 {upcomingTasks.length > 5 && (
                   <div className="text-center pt-2">
-                    <Button variant="outline" className="text-student-purple">
+                    <Button 
+                      variant="outline" 
+                      className="text-student-purple"
+                      onClick={() => navigate("/tasks")}
+                    >
                       View All Tasks
                     </Button>
                   </div>
@@ -156,28 +186,31 @@ const Dashboard = () => {
             <CardDescription>Get started quickly</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button variant="outline" className="w-full justify-start" asChild>
-              <a href="/chatbot">
-                <MessageSquare className="mr-2 h-4 w-4 text-student-purple" />
-                Ask AI Assistant
-              </a>
+            <Button 
+              variant="outline" 
+              className="w-full justify-start" 
+              onClick={() => navigate("/chatbot")}
+            >
+              <MessageSquare className="mr-2 h-4 w-4 text-student-purple" />
+              Ask AI Assistant
             </Button>
             
-            <Button variant="outline" className="w-full justify-start" asChild>
-              <a href="/materials">
-                <BookOpen className="mr-2 h-4 w-4 text-student-purple" />
-                Upload Study Materials
-              </a>
+            <Button 
+              variant="outline" 
+              className="w-full justify-start" 
+              onClick={() => navigate("/materials")}
+            >
+              <BookOpen className="mr-2 h-4 w-4 text-student-purple" />
+              Upload Study Materials
             </Button>
             
-            <Button variant="outline" className="w-full justify-start">
+            <Button 
+              variant="outline" 
+              className="w-full justify-start"
+              onClick={() => setTaskFormOpen(true)}
+            >
               <CalendarClock className="mr-2 h-4 w-4 text-student-purple" />
               Plan Study Schedule
-            </Button>
-            
-            <Button variant="outline" className="w-full justify-start">
-              <CheckCircle className="mr-2 h-4 w-4 text-student-purple" />
-              Mark Task Complete
             </Button>
             
             <div className="pt-2">
@@ -200,6 +233,8 @@ const Dashboard = () => {
           </CardContent>
         </Card>
       </div>
+      
+      <TaskForm open={taskFormOpen} onOpenChange={setTaskFormOpen} />
     </div>
   );
 };

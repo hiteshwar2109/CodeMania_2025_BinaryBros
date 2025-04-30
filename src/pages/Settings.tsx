@@ -1,12 +1,19 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/sonner";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthContext";
-import { DatabaseService } from "@/services/DatabaseService";
+import { supabase } from "@/integrations/supabase/client";
+import { Loader2 } from "lucide-react";
+
+interface UserPreferences {
+  notificationsEnabled: boolean;
+  emailNotifications: boolean;
+  theme: string;
+}
 
 const Settings = () => {
   const { user } = useAuth();
@@ -14,21 +21,62 @@ const Settings = () => {
   const [emailNotifications, setEmailNotifications] = useState(false);
   const [theme, setTheme] = useState("light");
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch user preferences
+  useEffect(() => {
+    const fetchUserPreferences = async () => {
+      if (!user) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('preferences')
+          .eq('id', user.id)
+          .single();
+          
+        if (error) throw error;
+        
+        if (data && data.preferences) {
+          const preferences = data.preferences as UserPreferences;
+          setNotificationsEnabled(preferences.notificationsEnabled ?? true);
+          setEmailNotifications(preferences.emailNotifications ?? false);
+          setTheme(preferences.theme ?? "light");
+        }
+      } catch (error) {
+        console.error("Error fetching user preferences:", error);
+        toast.error("Failed to load settings");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    if (user) {
+      fetchUserPreferences();
+    } else {
+      setIsLoading(false);
+    }
+  }, [user]);
 
   // Save user preferences
-  const savePreferences = () => {
+  const savePreferences = async () => {
     if (!user) return;
     
     setIsSaving(true);
     
     try {
-      DatabaseService.updateUser(user.id, {
-        preferences: {
-          notificationsEnabled,
-          emailNotifications,
-          theme
-        }
-      });
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          preferences: {
+            notificationsEnabled,
+            emailNotifications,
+            theme
+          }
+        })
+        .eq('id', user.id);
+        
+      if (error) throw error;
       
       toast.success("Settings saved successfully!");
     } catch (error) {
@@ -38,6 +86,14 @@ const Settings = () => {
       setIsSaving(false);
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-student-purple" />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -128,7 +184,14 @@ const Settings = () => {
             disabled={isSaving}
             className="bg-student-purple hover:bg-student-purple-dark"
           >
-            {isSaving ? "Saving..." : "Save Settings"}
+            {isSaving ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Save Settings"
+            )}
           </Button>
         </div>
       </div>

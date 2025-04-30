@@ -9,7 +9,132 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      materials: {
+        Row: {
+          created_at: string
+          description: string | null
+          file_path: string | null
+          file_type: string | null
+          id: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          file_path?: string | null
+          file_type?: string | null
+          id?: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          file_path?: string | null
+          file_type?: string | null
+          id?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          is_read: boolean | null
+          message: string
+          related_item_id: string | null
+          title: string
+          type: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_read?: boolean | null
+          message: string
+          related_item_id?: string | null
+          title: string
+          type?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_read?: boolean | null
+          message?: string
+          related_item_id?: string | null
+          title?: string
+          type?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          name: string
+          preferences: Json | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id: string
+          name: string
+          preferences?: Json | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          preferences?: Json | null
+        }
+        Relationships: []
+      }
+      tasks: {
+        Row: {
+          category: string | null
+          completed: boolean | null
+          created_at: string
+          description: string | null
+          due_date: string
+          id: string
+          priority: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          category?: string | null
+          completed?: boolean | null
+          created_at?: string
+          description?: string | null
+          due_date: string
+          id?: string
+          priority?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          category?: string | null
+          completed?: boolean | null
+          created_at?: string
+          description?: string | null
+          due_date?: string
+          id?: string
+          priority?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
